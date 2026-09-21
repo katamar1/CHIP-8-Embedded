@@ -1,53 +1,28 @@
+#define SDL_MAIN_USE_CALLBACKS 1
+
 #include <stdio.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_init.h>
 
 typedef __uint16_t Address;
+static SDL_Window *screen = NULL;
+static SDL_Renderer *renderer = NULL;
 
-int main(int argc, char *argv[])
+SDL_AppResult SDL_AppInit(void **appstate, int argc, char* argv[])
 {
-	printf("Welcome to the Embedded CHIP-8 Emulator!\n");
 	int i, max, c;
-	SDL_Window *screen = NULL;
-	SDL_Renderer *renderer = NULL;
+	if (!SDL_Init(SDL_INIT_VIDEO)) {
+        SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
+        return SDL_APP_FAILURE;
+    }
 
-	// Initialize the video.
-	SDL_Init(SDL_INIT_VIDEO);
-	SDL_CreateWindowAndRenderer("CHIP-8", 0, 0, SDL_WINDOW_FULLSCREEN, &screen, &renderer);
-	SDL_SetRenderLogicalPresentation(renderer, 128, 64, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+    if (!SDL_CreateWindowAndRenderer("Chip-8", 0, 0, SDL_WINDOW_FULLSCREEN, &screen, &renderer)) {
+        SDL_Log("Couldn't create window/renderer: %s", SDL_GetError());
+        return SDL_APP_FAILURE;
+    }
+    SDL_SetRenderLogicalPresentation(renderer, 128, 64, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
-	bool running = true;
-	SDL_Event event;
-
-	while (running) {
-		while (SDL_PollEvent(&event)) {
-			if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_KEY_DOWN) {
-				running = false;
-			}
-		}
-
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-		SDL_RenderClear(renderer);
-
-		SDL_SetRenderDrawColor(renderer,255,255,255,255);
-		SDL_FRect pixel = { 64.0f, 32.0f, 1.0f, 1.0f};
-		SDL_RenderFillRect(renderer, &pixel);
-		SDL_RenderDebugText(renderer, 10, 10, "Chip-8");
-		SDL_RenderPresent(renderer);
-	}
-
-	SDL_DestroyRenderer(renderer);
-	SDL_DestroyWindow(screen);
-	SDL_Quit();
-	// Memory
-
-	// CHIP-8 will have 4 KB of RAM - more than enough on the Pico board.
-	// The index register and PC can both only store 16 bits.
-	// In order to be compatible with older games, the interpreter should start at 0x200.
-	// Before this address, we'll need to make the font.
-
-	// Load the ROM into memory.
 	__uint8_t memory[4000];
 
 	printf("Created 4KB memory.\n");
@@ -75,6 +50,38 @@ int main(int argc, char *argv[])
 		__uint16_t opcode = (memory[i] << 8) | memory[i + 1];
 		printf("%04x\n", opcode);
 	}
+
+
+    return SDL_APP_CONTINUE;
+}
+
+SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
+{
+    if (event->type == SDL_EVENT_QUIT) {
+        return SDL_APP_SUCCESS;  /* end the program, reporting success to the OS. */
+    }
+    return SDL_APP_CONTINUE;  /* carry on with the program! */
+
+}
+
+SDL_AppResult SDL_AppIterate(void *appstate)
+{
+
+
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
+
+	SDL_SetRenderDrawColor(renderer,255,255,255,255);
+	SDL_FRect pixel = { 64.0f, 32.0f, 1.0f, 1.0f};
+	SDL_RenderFillRect(renderer, &pixel);
+	SDL_RenderDebugText(renderer, 10, 10, "Chip-8");
+	SDL_RenderPresent(renderer);
+	// Memory
+
+	// CHIP-8 will have 4 KB of RAM - more than enough on the Pico board.
+	// The index register and PC can both only store 16 bits.
+	// In order to be compatible with older games, the interpreter should start at 0x200.
+	// Before this address, we'll need to make the font.
 
 	// Font
 
@@ -164,6 +171,11 @@ int main(int argc, char *argv[])
 	// FX29: Font Character
 	// FX33: Binary Coded decimal conversion
 	// FX55 and FX65: Store and load memory
-	return 0;
+	return SDL_APP_CONTINUE;
+}
+
+void SDL_AppQuit(void *appstate, SDL_AppResult result)
+{
+
 }
 
