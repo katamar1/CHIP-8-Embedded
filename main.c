@@ -1,6 +1,7 @@
 #include <stdio.h>
+#include <string.h>
 
-typedef __int16_t Address;
+typedef __uint16_t Address;
 
 int main(void)
 {
@@ -33,14 +34,15 @@ int main(void)
 		else if (i % 4 == 1) {
 			putchar('\n');
 		}
+		memory[512 + i] = c;
 	}
 
-	if (i % 16 != 0) {
-		putchar('\n');
-	}
-
+	printf("Done loading into memory!\n");
 	fclose(fp);
-
+	for (i = 512; i < 4000; i+= 2){
+		__uint16_t opcode = (memory[i] << 8) | memory[i + 1];
+		printf("%04x\n", opcode);
+	}
 
 	// Font
 
