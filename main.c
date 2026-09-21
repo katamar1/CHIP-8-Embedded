@@ -1,8 +1,11 @@
 #include <stdio.h>
 
+typedef __int16_t Address;
+
 int main(void)
 {
 	printf("Welcome to the Embedded CHIP-8 Emulator!\n");
+	int i, max, c;
 
 	// Memory
 
@@ -10,6 +13,33 @@ int main(void)
 	// The index register and PC can both only store 16 bits.
 	// In order to be compatible with older games, the interpreter should start at 0x200.
 	// Before this address, we'll need to make the font.
+
+	// Load the ROM into memory.
+	__uint8_t memory[4000];
+
+	printf("Created 4KB memory.\n");
+
+	FILE *fp = fopen("2-ibm-logo.ch8", "rb");
+	if (fp == NULL) {
+		fprintf(stderr, "cannot open input file!\n");
+		return 1;
+	}
+
+	for (i = 0, max = 4000; i < max && (c = getc(fp)) != EOF; i++) {
+		printf("%02x", c);
+		if (i % 16 == 15) {
+			putchar('\n');
+		}
+		else if (i % 4 == 1) {
+			putchar('\n');
+		}
+	}
+
+	if (i % 16 != 0) {
+		putchar('\n');
+	}
+
+	fclose(fp);
 
 
 	// Font
@@ -72,7 +102,7 @@ int main(void)
 	// Extract these before decoding to avoid redundancy.
 	// Use macros to make this easier!
 
-	// Executa
+	// Execute
 
 	// Start with: clear screen, jump, set register, add value to reg, set index reg, display.
 	// Can test these with the IBM logo program.
