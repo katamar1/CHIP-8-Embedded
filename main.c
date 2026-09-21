@@ -1,13 +1,45 @@
 #include <stdio.h>
-#include <string.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3/SDL_init.h>
 
 typedef __uint16_t Address;
 
-int main(void)
+int main(int argc, char *argv[])
 {
 	printf("Welcome to the Embedded CHIP-8 Emulator!\n");
 	int i, max, c;
+	SDL_Window *screen = NULL;
+	SDL_Renderer *renderer = NULL;
 
+	// Initialize the video.
+	SDL_Init(SDL_INIT_VIDEO);
+	SDL_CreateWindowAndRenderer("CHIP-8", 0, 0, SDL_WINDOW_FULLSCREEN, &screen, &renderer);
+	SDL_SetRenderLogicalPresentation(renderer, 128, 64, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+
+	bool running = true;
+	SDL_Event event;
+
+	while (running) {
+		while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_KEY_DOWN) {
+				running = false;
+			}
+		}
+
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+		SDL_RenderClear(renderer);
+
+		SDL_SetRenderDrawColor(renderer,255,255,255,255);
+		SDL_FRect pixel = { 64.0f, 32.0f, 1.0f, 1.0f};
+		SDL_RenderFillRect(renderer, &pixel);
+		SDL_RenderDebugText(renderer, 10, 10, "Chip-8");
+		SDL_RenderPresent(renderer);
+	}
+
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(screen);
+	SDL_Quit();
 	// Memory
 
 	// CHIP-8 will have 4 KB of RAM - more than enough on the Pico board.
@@ -20,7 +52,7 @@ int main(void)
 
 	printf("Created 4KB memory.\n");
 
-	FILE *fp = fopen("2-ibm-logo.ch8", "rb");
+	FILE *fp = fopen("../2-ibm-logo.ch8", "rb");
 	if (fp == NULL) {
 		fprintf(stderr, "cannot open input file!\n");
 		return 1;
