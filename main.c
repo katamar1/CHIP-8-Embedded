@@ -4,7 +4,11 @@
 #include <SDL3/SDL_init.h>
 #include <time.h>
 
+#define START_OF_ROM 512
+#define CHIP8_MEM_SIZE 4000
 typedef __uint16_t Address;
+
+typedef __uint8_t Byte;
 
 static bool screen[32][64];
 
@@ -12,7 +16,7 @@ static __uint8_t registers[16];
 
 static __uint16_t index_register;
 
-
+// This function exists to be called once within the main function, to make sure that it executes 60 times per second.
 void delay(long milliseconds) {
 	struct timespec req;
 	req.tv_sec = milliseconds / 1000;
@@ -25,27 +29,31 @@ void delay(long milliseconds) {
 int main(int argc, char *argv[])
 {
 	int i, max, c;
-	int PC = 512;
+	int PC = START_OF_ROM;
+
+	// Setup for SDL.
 	SDL_Window *window = NULL;
 	SDL_Renderer *renderer = NULL;
 	SDL_Init(SDL_INIT_VIDEO);
-
     SDL_CreateWindowAndRenderer("Chip-8", 0, 0, SDL_WINDOW_FULLSCREEN, &window, &renderer);
     SDL_SetRenderLogicalPresentation(renderer, 64, 32, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
+	SDL_SetRenderDrawColor(renderer,255,255,255,255);
 
 
-	__uint8_t memory[4000];
 
+	// Load the ROM into memory.
+	Byte memory[CHIP8_MEM_SIZE];
 	printf("Created 4KB memory.\n");
-	printf("Testing bool array: %d\n", screen[4][4]);
-
 	FILE *fp = fopen("../../2-ibm-logo.ch8", "rb");
+
 	if (fp == NULL) {
 		fprintf(stderr, "cannot open input file!\n");
 		return 1;
 	}
 
-	for (i = 0, max = 4000; i < max && (c = getc(fp)) != EOF; i++) {
+	for (i = 0, max = CHIP8_MEM_SIZE; i < max && (c = getc(fp)) != EOF; i++) {
 		/*
 		printf("%02x", c);
 		if (i % 16 == 15) {
@@ -55,8 +63,9 @@ int main(int argc, char *argv[])
 			putchar('\n');
 		}
 		*/
-		memory[512 + i] = c;
+		memory[START_OF_ROM + i] = c;
 	}
+
 	fclose(fp);
 
 	/*
@@ -68,13 +77,12 @@ int main(int argc, char *argv[])
 	}
 	*/
 
-	
-	
-
 	bool running = true;
 	bool jump = false;
 	SDL_Event event;
 	// int jump_count = 0;
+
+	// This is the main function. It processes events, decodes 12 instructions, updates the timers and display, and runs 60/s.
 	while (running) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EVENT_KEY_DOWN) {
@@ -96,7 +104,7 @@ int main(int argc, char *argv[])
 		}
 		*/
 		for (int m = 0; m < 12; m++) {
-			//fetch
+			// Fetch the current opcooe.
 			__uint16_t opcode = (memory[PC] << 8) | memory[PC + 1];
 			if (!jump) {
 				PC += 2;
@@ -105,16 +113,16 @@ int main(int argc, char *argv[])
 				return 0;
 			}
 
-			//decode
+			// Decode the current opcode. Not all of these will be used.
 			__uint8_t category = (opcode & 0xF000) >> 12;
 			__uint8_t X = (opcode & 0x0F00) >> 8;
 			__uint8_t Y = (opcode & 0x00F0) >> 4;
 			__uint8_t N = (opcode & 0x000F);
 			__uint8_t NN = (opcode & 0x00FF);
-			__uint16_t NNN = (opcode & 0x0FFF);
+			Address NNN = (opcode & 0x0FFF);
 			printf("%x\n", opcode);
 
-			//execute
+			// Execute the current opcode.
 			switch (category) {
 				case 0x0:
 					printf("Clear screen\n");
@@ -148,12 +156,14 @@ int main(int argc, char *argv[])
 					__uint8_t x_coord_original = x_coord;
 					__uint8_t y_coord = registers[Y] % 32;
 					registers[0xF] = 0;
+					// Complicated logic, but what this does is process the sprite data and draw it to the screen buffer.
+					// The screen buffer of bools will be given to SDL to draw in the next step.
 					for (int i = 0; i < N; i++) {
 						if (y_coord > 32) {
 							break;
 						}
 						x_coord = x_coord_original;
-						__uint8_t sprite_data = memory[index_register + i];
+						Byte sprite_data = memory[index_register + i];
 						__uint8_t temp_bit_helper = 0x80;
 						for (int j = 7; j >= 0; j--) {
 							if (x_coord > 64) {
@@ -177,13 +187,9 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		// update display timers
+		// TODO: Add display timers and update them here.
 
-		// update display
-
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-		SDL_RenderClear(renderer);
-		SDL_SetRenderDrawColor(renderer,255,255,255,255);
+		// This updates the display with SDL.
 		for (int i = 0; i < 32; i++) {
 			for (int j = 0; j < 64; j++) {
 				if (screen[i][j] == 1) {
@@ -194,7 +200,7 @@ int main(int argc, char *argv[])
 		}
 		SDL_RenderPresent(renderer);
 
-		// delay
+		// This function delays to ensure the main loop runs about 60/s.
 		delay(17);
 	}	
 	return 0;
