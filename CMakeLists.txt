@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_BUILD_TYPE Debug)
 project(emulator)
 
 # set the output directory for built objects.
@@ -15,3 +16,10 @@ add_executable(emulator main.c)
 
 # Link to the actual SDL3 library.
 target_link_libraries(emulator PRIVATE SDL3::SDL3)
+
+# Sanitization for UB
+# target_compile_options(emulator PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+
+# Address checking
+# target_link_options(emulator PRIVATE -fsanitize=address,undefined)
+
