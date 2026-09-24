@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_init.h>
+#include <time.h>
 
 typedef __uint16_t Address;
 
@@ -10,6 +11,15 @@ static bool screen[32][64];
 static __uint8_t registers[16];
 
 static __uint16_t index_register;
+
+
+void delay(long milliseconds) {
+	struct timespec req;
+	req.tv_sec = milliseconds / 1000;
+	req.tv_nsec = (milliseconds % 1000) * 1000000L;
+	nanosleep(&req, NULL);
+}
+
 
 
 int main(int argc, char *argv[])
@@ -57,21 +67,22 @@ int main(int argc, char *argv[])
 		printf("%04x\n", opcode);
 	}
 	*/
+
 	
 	
 
 	bool running = true;
 	bool jump = false;
 	SDL_Event event;
-	int jump_count = 0;
+	// int jump_count = 0;
 	while (running) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EVENT_KEY_DOWN) {
 				running = false;
 			}
 		}
-		if (jump_count > 10) {
-			for (int l = 0; l < 32; l++) {
+		/* if (jump_count > 10) {
+			 for (int l = 0; l < 32; l++) {
 				for (int k = 0; k < 64; k++) {
 					if (screen[l][k] == 0) {
 						printf(". ");
@@ -83,6 +94,7 @@ int main(int argc, char *argv[])
 			}
 			running = false;
 		}
+		*/
 		for (int m = 0; m < 12; m++) {
 			//fetch
 			__uint16_t opcode = (memory[PC] << 8) | memory[PC + 1];
@@ -112,7 +124,7 @@ int main(int argc, char *argv[])
 					printf("Jump\n");
 					PC = NNN;
 					jump = true;
-					jump_count++;
+					//jump_count++;
 					break;
 				case 0x6:
 					printf("Set register VX\n");
@@ -172,13 +184,18 @@ int main(int argc, char *argv[])
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		SDL_RenderClear(renderer);
 		SDL_SetRenderDrawColor(renderer,255,255,255,255);
-		//printf("ClearedDrawColor");
-		SDL_FRect pixel = { 64.0f, 32.0f, 1.0f, 1.0f};
-		SDL_RenderFillRect(renderer, &pixel);
-		SDL_RenderDebugText(renderer, 10, 10, "Chip-8");
+		for (int i = 0; i < 32; i++) {
+			for (int j = 0; j < 64; j++) {
+				if (screen[i][j] == 1) {
+					SDL_FRect pixel = {j, i, 1.0f, 1.0f};
+					SDL_RenderFillRect(renderer, &pixel);
+				}
+			}
+		}
 		SDL_RenderPresent(renderer);
 
 		// delay
+		delay(17);
 	}	
 	return 0;
 }
