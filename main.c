@@ -5,7 +5,9 @@
 #include <time.h>
 
 #define START_OF_ROM 512
-#define CHIP8_MEM_SIZE 4000
+#define CHIP8_MEM_SIZE 4096
+#define SAMPLE_RATE 8000
+#define TONE_HZ 440 
 typedef __uint16_t Address;
 
 typedef __uint8_t Byte;
@@ -24,6 +26,8 @@ static int stack_current = -1;
 
 static Byte delay_timer = 0;
 
+static Byte sound_timer = 0;
+
 // This function exists to be called once within the main function, to make sure that it executes 60 times per second.
 void delay(long milliseconds) {
 	struct timespec req;
@@ -31,6 +35,23 @@ void delay(long milliseconds) {
 	req.tv_nsec = (milliseconds % 1000) * 1000000L;
 	nanosleep(&req, NULL);
 }
+
+static void SDLCALL feed_audio(void *userdata, SDL_AudioStream *s, int additional_amount, int total_amount) {
+    static int phase = 0;
+    const int period = SAMPLE_RATE / TONE_HZ;
+    int n = additional_amount / sizeof(float);
+    float buf[256];
+    while (n > 0) {
+        int count = SDL_min(n, (int)SDL_arraysize(buf));
+        for (int i = 0; i < count; i++) {
+            buf[i] = (phase < period / 2) ? 0.15f : -0.15f;
+            phase = (phase + 1) % period;
+        }
+        SDL_PutAudioStreamData(s, buf, count * sizeof(float));
+        n -= count;
+    }
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -40,19 +61,26 @@ int main(int argc, char *argv[])
 	// Setup for SDL.
 	SDL_Window *window = NULL;
 	SDL_Renderer *renderer = NULL;
-	SDL_Init(SDL_INIT_VIDEO);
+	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
     SDL_CreateWindowAndRenderer("Chip-8", 0, 0, SDL_WINDOW_FULLSCREEN, &window, &renderer);
     SDL_SetRenderLogicalPresentation(renderer, 64, 32, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	SDL_SetRenderDrawColor(renderer,255,255,255,255);
 
+	SDL_AudioStream *stream = NULL;
+	SDL_AudioSpec spec;
+	spec.channels = 1;
+	spec.format = SDL_AUDIO_F32;
+	spec.freq = SAMPLE_RATE;
+	stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, feed_audio, NULL);
+
 
 
 	// Load the ROM into memory.
 	Byte memory[CHIP8_MEM_SIZE];
 	printf("Created 4KB memory.\n");
-	FILE *fp = fopen("../../6-keypad.ch8", "rb");
+	FILE *fp = fopen("../../space_invaders.ch8", "rb");
 
 	if (fp == NULL) {
 		fprintf(stderr, "cannot open input file!\n");
@@ -85,7 +113,9 @@ int main(int argc, char *argv[])
 
 	bool running = true;
 	bool blocking = false;
+	bool sound_on = false;
 	SDL_Event event;
+	__uint8_t global_X = 0;
 	// int jump_count = 0;
 
 	// This is the main function. It processes events, decodes 12 instructions, updates the timers and display, and runs 60/s.
@@ -147,62 +177,111 @@ int main(int argc, char *argv[])
 				}
 			}
 			else if (event.type == SDL_EVENT_KEY_UP) {
-				if (blocking) {
-					blocking = false;
-					PC += 2;
-				}
+				
 				switch (event.key.scancode) {
 					case SDL_SCANCODE_1:
 						keypad[0][0] = 0;
+						if (blocking) {
+							registers[global_X] = 0x1;
+						}
 						break;
 					case SDL_SCANCODE_2:
 						keypad[0][1] = 0;
+						if (blocking) {
+							registers[global_X] = 0x2;
+						}
 						break;
 					case SDL_SCANCODE_3:
 						keypad[0][2] = 0;
+						if (blocking) {
+							registers[global_X] = 0x3;
+						}
 						break;
 					case SDL_SCANCODE_4:
 						keypad[0][3] = 0;
+						if (blocking) {
+							registers[global_X] = 0xC;
+						}
 						break;
 					case SDL_SCANCODE_Q:
 						keypad[1][0] = 0;
+						if (blocking) {
+							registers[global_X] = 0x4;
+						}
 						break;
 					case SDL_SCANCODE_W:
 						keypad[1][1] = 0;
+						if (blocking) {
+							registers[global_X] = 0x5;
+						}
 						break;
 					case SDL_SCANCODE_E:
 						keypad[1][2] = 0;
+						if (blocking) {
+							registers[global_X] = 0x6;
+						}
 						break;
 					case SDL_SCANCODE_R:
 						keypad[1][3] = 0;
+						if (blocking) {
+							registers[global_X] = 0xD;
+						}
 						break;
 					case SDL_SCANCODE_A:
 						keypad[2][0] = 0;
+						if (blocking) {
+							registers[global_X] = 0x7;
+						}
 						break;
 					case SDL_SCANCODE_S:
 						keypad[2][1] = 0;
+						if (blocking) {
+							registers[global_X] = 0x8;
+						}
 						break;
 					case SDL_SCANCODE_D:
 						keypad[2][2] = 0;
+						if (blocking) {
+							registers[global_X] = 0x9;
+						}
 						break;
 					case SDL_SCANCODE_F:
 						keypad[2][3] = 0;
+						if (blocking) {
+							registers[global_X] = 0xE;
+						}
 						break;
 					case SDL_SCANCODE_Z:
 						keypad[3][0] = 0;
+						if (blocking) {
+							registers[global_X] = 0xA;
+						}
 						break;
 					case SDL_SCANCODE_X:
 						keypad[3][1] = 0;
+						if (blocking) {
+							registers[global_X] = 0x0;
+						}
 						break;
 					case SDL_SCANCODE_C:
 						keypad[3][2] = 0;
+						if (blocking) {
+							registers[global_X] = 0xB;
+						}
 						break;
 					case SDL_SCANCODE_V:
 						keypad[3][3] = 0;
+						if (blocking) {
+							registers[global_X] = 0xF;
+						}
 						break;
 					default:
 						running = false;
 						break;
+				}
+				if (blocking) {
+					blocking = false;
+					PC += 2;
 				}
 			}
 		}
@@ -229,9 +308,10 @@ int main(int argc, char *argv[])
 			// Fetch the current opcooe.
 			// jump_count++;
 			__uint16_t opcode = (memory[PC] << 8) | memory[PC + 1];
-			if (!blocking) {
-				PC += 2;
+			if (blocking) {
+				break;
 			}
+			PC += 2;
 			
 			// Decode the current opcode. Not all of these will be used.
 			__uint8_t category = (opcode & 0xF000) >> 12;
@@ -241,6 +321,7 @@ int main(int argc, char *argv[])
 			__uint8_t NN = (opcode & 0x00FF);
 			Address NNN = (opcode & 0x0FFF);
 			printf("%x\n", opcode);
+			global_X = X;
 
 			// Execute the current opcode.
 			
@@ -584,10 +665,15 @@ int main(int argc, char *argv[])
 						case 0x0A:
 							printf("Get key\n");
 							PC -= 2;
+							blocking = true;
 							break;
 						case 0x15:
 							printf("Timer\n");
 							delay_timer = registers[X];
+							break;
+						case 0x18:
+							printf("Timer\n");
+							sound_timer = registers[X];
 							break;
 						case 0x65:
 							printf("Load memory\n");
@@ -634,6 +720,16 @@ int main(int argc, char *argv[])
 	
 		if (delay_timer > 0) {
 			delay_timer--;
+		}
+		if (sound_timer > 0) {
+			if (!sound_on) {
+				SDL_ResumeAudioStreamDevice(stream);
+				sound_on = true;
+			}
+			sound_timer--;
+		} else if (sound_on) {
+			SDL_PauseAudioStreamDevice(stream);
+			sound_on = false;
 		}
 
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
