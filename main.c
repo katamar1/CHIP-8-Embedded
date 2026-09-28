@@ -16,6 +16,10 @@ static __uint8_t registers[16];
 
 static __uint16_t index_register;
 
+static Address stack[16];
+
+static int stack_current = -1;
+
 // This function exists to be called once within the main function, to make sure that it executes 60 times per second.
 void delay(long milliseconds) {
 	struct timespec req;
@@ -23,8 +27,6 @@ void delay(long milliseconds) {
 	req.tv_nsec = (milliseconds % 1000) * 1000000L;
 	nanosleep(&req, NULL);
 }
-
-
 
 int main(int argc, char *argv[])
 {
@@ -46,7 +48,7 @@ int main(int argc, char *argv[])
 	// Load the ROM into memory.
 	Byte memory[CHIP8_MEM_SIZE];
 	printf("Created 4KB memory.\n");
-	FILE *fp = fopen("../../2-ibm-logo.ch8", "rb");
+	FILE *fp = fopen("../../test_opcode.ch8", "rb");
 
 	if (fp == NULL) {
 		fprintf(stderr, "cannot open input file!\n");
@@ -78,7 +80,6 @@ int main(int argc, char *argv[])
 	*/
 
 	bool running = true;
-	bool jump = false;
 	SDL_Event event;
 	// int jump_count = 0;
 
@@ -106,13 +107,8 @@ int main(int argc, char *argv[])
 		for (int m = 0; m < 12; m++) {
 			// Fetch the current opcooe.
 			__uint16_t opcode = (memory[PC] << 8) | memory[PC + 1];
-			if (!jump) {
-				PC += 2;
-			}
-			if (PC >= 1000) {
-				return 0;
-			}
-
+			PC += 2;
+			
 			// Decode the current opcode. Not all of these will be used.
 			__uint8_t category = (opcode & 0xF000) >> 12;
 			__uint8_t X = (opcode & 0x0F00) >> 8;
@@ -123,16 +119,58 @@ int main(int argc, char *argv[])
 			printf("%x\n", opcode);
 
 			// Execute the current opcode.
+			
+			// TODO: Add subroutine opcodes.
+			// TODO: Add logical and arithmetic instruction opcodes.
+			// TODO: Add jump with index opcode.
+			// TODO: Add random opcode.
+			// TODO: Implement keyboard and skip if key opcodesx.
+			// TODO: Add timer opcodes.
+			// TODO: Add add to index opcode.
+			// TODO: Add get key opcode.
+			// TODO: Add the fonts in memory and implement font character opcode.
+			// TODO: Add binary-coded decimal conversion opcode.
+			// TODO: Add store and load memory opcodes.
 			switch (category) {
 				case 0x0:
+					switch (NN) {
+						case 0xE0:
+							printf("Subroutine\n");
+							PC = stack[stack_current];
+							stack_current--;
+							break;
+					}
 					printf("Clear screen\n");
 					memset(screen, 0, sizeof(screen));
 					break;
 				case 0x1:
 					printf("Jump\n");
 					PC = NNN;
-					jump = true;
 					//jump_count++;
+					break;
+				case 0x2:
+					printf("Subroutine\n");
+					stack_current++;
+					stack[stack_current] = PC;
+					PC = NNN;
+					break;
+				case 0x3:
+					printf("Skip Conditionally\n");
+					if (registers[X] == NN) {
+						PC += 2;
+					}
+					break;
+				case 0x4:
+					printf("Skip Conditionally\n");
+					if (registers[X] != NN) {
+						PC += 2;
+					}
+					break;
+				case 0x5:
+					printf("Skip Conditionally\n");
+					if (registers[X] == registers[Y]) {
+						PC += 2;
+					}
 					break;
 				case 0x6:
 					printf("Set register VX\n");
@@ -140,10 +178,12 @@ int main(int argc, char *argv[])
 					break;
 				case 0x7:
 					printf("Add value to register VX\n");
-					if (registers[X] + NN > 0xFF) {
-						break;
-					} else {
-						registers[X] += NN; 
+					registers[X] += NN;
+					break;
+				case 0x9:
+					printf("Skip Conditionally\n");
+					if (registers[X] != registers[Y]) {
+						PC += 2;
 					}
 					break;
 				case 0xA:
