@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 	// Load the ROM into memory.
 	Byte memory[CHIP8_MEM_SIZE];
 	printf("Created 4KB memory.\n");
-	FILE *fp = fopen("../../5-quirks.ch8", "rb");
+	FILE *fp = fopen("../../6-keypad.ch8", "rb");
 
 	if (fp == NULL) {
 		fprintf(stderr, "cannot open input file!\n");
@@ -92,16 +92,58 @@ int main(int argc, char *argv[])
 	while (running) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EVENT_KEY_DOWN) {
-				for(int i = 0; i < 1000; i++) {
-					printf("Name of key: %s\n", SDL_GetKeyName(event.key.key));
-				}
-				if (event.key.scancode == SDL_SCANCODE_1) {
-					keypad[0][0] = 1;
-					for (int i = 0; i < 1000; i++) {
-						printf("1 KEY PRESSED!\n");
-					}
-				} else {
-					running = false;
+				switch (event.key.scancode) {
+					case SDL_SCANCODE_1:
+						keypad[0][0] = 1;
+						break;
+					case SDL_SCANCODE_2:
+						keypad[0][1] = 1;
+						break;
+					case SDL_SCANCODE_3:
+						keypad[0][2] = 1;
+						break;
+					case SDL_SCANCODE_4:
+						keypad[0][3] = 1;
+						break;
+					case SDL_SCANCODE_Q:
+						keypad[1][0] = 1;
+						break;
+					case SDL_SCANCODE_W:
+						keypad[1][1] = 1;
+						break;
+					case SDL_SCANCODE_E:
+						keypad[1][2] = 1;
+						break;
+					case SDL_SCANCODE_R:
+						keypad[1][3] = 1;
+						break;
+					case SDL_SCANCODE_A:
+						keypad[2][0] = 1;
+						break;
+					case SDL_SCANCODE_S:
+						keypad[2][1] = 1;
+						break;
+					case SDL_SCANCODE_D:
+						keypad[2][2] = 1;
+						break;
+					case SDL_SCANCODE_F:
+						keypad[2][3] = 1;
+						break;
+					case SDL_SCANCODE_Z:
+						keypad[3][0] = 1;
+						break;
+					case SDL_SCANCODE_X:
+						keypad[3][1] = 1;
+						break;
+					case SDL_SCANCODE_C:
+						keypad[3][2] = 1;
+						break;
+					case SDL_SCANCODE_V:
+						keypad[3][3] = 1;
+						break;
+					default:
+						running = false;
+						break;
 				}
 			}
 			else if (event.type == SDL_EVENT_KEY_UP) {
@@ -109,13 +151,58 @@ int main(int argc, char *argv[])
 					blocking = false;
 					PC += 2;
 				}
-				if (event.key.scancode == SDL_SCANCODE_1) {
-					keypad[0][0] = 0;
-					for (int i = 0; i < 1000; i++) {
-						printf("1 KEY LIFTED!\n");
-					}
-				} else {
-					running = false;
+				switch (event.key.scancode) {
+					case SDL_SCANCODE_1:
+						keypad[0][0] = 0;
+						break;
+					case SDL_SCANCODE_2:
+						keypad[0][1] = 0;
+						break;
+					case SDL_SCANCODE_3:
+						keypad[0][2] = 0;
+						break;
+					case SDL_SCANCODE_4:
+						keypad[0][3] = 0;
+						break;
+					case SDL_SCANCODE_Q:
+						keypad[1][0] = 0;
+						break;
+					case SDL_SCANCODE_W:
+						keypad[1][1] = 0;
+						break;
+					case SDL_SCANCODE_E:
+						keypad[1][2] = 0;
+						break;
+					case SDL_SCANCODE_R:
+						keypad[1][3] = 0;
+						break;
+					case SDL_SCANCODE_A:
+						keypad[2][0] = 0;
+						break;
+					case SDL_SCANCODE_S:
+						keypad[2][1] = 0;
+						break;
+					case SDL_SCANCODE_D:
+						keypad[2][2] = 0;
+						break;
+					case SDL_SCANCODE_F:
+						keypad[2][3] = 0;
+						break;
+					case SDL_SCANCODE_Z:
+						keypad[3][0] = 0;
+						break;
+					case SDL_SCANCODE_X:
+						keypad[3][1] = 0;
+						break;
+					case SDL_SCANCODE_C:
+						keypad[3][2] = 0;
+						break;
+					case SDL_SCANCODE_V:
+						keypad[3][3] = 0;
+						break;
+					default:
+						running = false;
+						break;
 				}
 			}
 		}
@@ -138,7 +225,7 @@ int main(int argc, char *argv[])
 		}
 		*/
 		
-		for (int m = 0; m < 12; m++) {
+		for (int m = 0; m < 30; m++) {
 			// Fetch the current opcooe.
 			// jump_count++;
 			__uint16_t opcode = (memory[PC] << 8) | memory[PC + 1];
