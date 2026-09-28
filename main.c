@@ -84,6 +84,7 @@ int main(int argc, char *argv[])
 	*/
 
 	bool running = true;
+	bool blocking = false;
 	SDL_Event event;
 	// int jump_count = 0;
 
@@ -91,13 +92,30 @@ int main(int argc, char *argv[])
 	while (running) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EVENT_KEY_DOWN) {
+				for(int i = 0; i < 1000; i++) {
+					printf("Name of key: %s\n", SDL_GetKeyName(event.key.key));
+				}
 				if (event.key.scancode == SDL_SCANCODE_1) {
 					keypad[0][0] = 1;
+					for (int i = 0; i < 1000; i++) {
+						printf("1 KEY PRESSED!\n");
+					}
+				} else {
+					running = false;
 				}
 			}
-			if (event.type == SDL_EVENT_KEY_UP) {
+			else if (event.type == SDL_EVENT_KEY_UP) {
+				if (blocking) {
+					blocking = false;
+					PC += 2;
+				}
 				if (event.key.scancode == SDL_SCANCODE_1) {
 					keypad[0][0] = 0;
+					for (int i = 0; i < 1000; i++) {
+						printf("1 KEY LIFTED!\n");
+					}
+				} else {
+					running = false;
 				}
 			}
 		}
@@ -124,7 +142,9 @@ int main(int argc, char *argv[])
 			// Fetch the current opcooe.
 			// jump_count++;
 			__uint16_t opcode = (memory[PC] << 8) | memory[PC + 1];
-			PC += 2;
+			if (!blocking) {
+				PC += 2;
+			}
 			
 			// Decode the current opcode. Not all of these will be used.
 			__uint8_t category = (opcode & 0xF000) >> 12;
@@ -282,6 +302,10 @@ int main(int argc, char *argv[])
 					printf("Set index register I\n");
 					index_register = NNN;
 					break;
+				case 0XB:
+					printf("Jump with offset\n");
+					PC = NNN + registers[0];
+					break;
 				case 0xD:
 					printf("Draw\n");
 					__uint8_t x_coord = registers[X] % 64;
@@ -314,11 +338,165 @@ int main(int argc, char *argv[])
 						y_coord++;
 					}
 					break;
+				case 0xE:
+					switch (NN) {
+						case 0x9E:
+							printf("Skip if key\n");
+							int i = 0;
+							int j = 0;
+							switch (registers[X]) {
+								case 0x1:
+									i = 0;
+									j = 0;
+									break;
+								case 0x2:
+									i = 0;
+									j = 1;
+									break;
+								case 0x3:
+									i = 0;
+									j = 2;
+									break;
+								case 0xC:
+									i = 0;
+									j = 3;
+									break;
+								case 0x4:
+									i = 1;
+									j = 0;
+									break;
+								case 0x5:
+									i = 1;
+									j = 1;
+									break;
+								case 0x6:
+									i = 1;
+									j = 2;
+									break;
+								case 0xD:
+									i = 1;
+									j = 3;
+									break;
+								case 0x7:
+									i = 2;
+									j = 0;
+									break;
+								case 0x8:
+									i = 2;
+									j = 1;
+									break;
+								case 0x9:
+									i = 2;
+									j = 2;
+									break;
+								case 0xE:
+									i = 2;
+									j = 3;
+									break;
+								case 0xA:
+									i = 3;
+									j = 0;
+									break;
+								case 0x0:
+									i = 3;
+									j = 1;
+									break;
+								case 0xB:
+									i = 3;
+									j = 2;
+									break;
+								case 0xF:
+									i = 3;
+									j = 3;
+									break;
+							}
+							if (keypad[i][j] == 1) {
+								PC += 2;
+							}
+							break;
+						case 0xA1:
+							printf("Skip if key\n");
+							switch (registers[X]) {
+								case 0x1:
+									i = 0;
+									j = 0;
+									break;
+								case 0x2:
+									i = 0;
+									j = 1;
+									break;
+								case 0x3:
+									i = 0;
+									j = 2;
+									break;
+								case 0xC:
+									i = 0;
+									j = 3;
+									break;
+								case 0x4:
+									i = 1;
+									j = 0;
+									break;
+								case 0x5:
+									i = 1;
+									j = 1;
+									break;
+								case 0x6:
+									i = 1;
+									j = 2;
+									break;
+								case 0xD:
+									i = 1;
+									j = 3;
+									break;
+								case 0x7:
+									i = 2;
+									j = 0;
+									break;
+								case 0x8:
+									i = 2;
+									j = 1;
+									break;
+								case 0x9:
+									i = 2;
+									j = 2;
+									break;
+								case 0xE:
+									i = 2;
+									j = 3;
+									break;
+								case 0xA:
+									i = 3;
+									j = 0;
+									break;
+								case 0x0:
+									i = 3;
+									j = 1;
+									break;
+								case 0xB:
+									i = 3;
+									j = 2;
+									break;
+								case 0xF:
+									i = 3;
+									j = 3;
+									break;
+							}
+							if (keypad[i][j] == 0) {
+								PC += 2;
+							}
+							break;
+					}
+					break;
 				case 0xF:
 					switch(NN) {
 						case 0x07:
 							printf("Timer\n");
 							registers[X] = delay_timer;
+							break;
+						case 0x0A:
+							printf("Get key\n");
+							PC -= 2;
 							break;
 						case 0x15:
 							printf("Timer\n");
@@ -370,6 +548,10 @@ int main(int argc, char *argv[])
 		if (delay_timer > 0) {
 			delay_timer--;
 		}
+
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+		SDL_RenderClear(renderer);
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
 		// This updates the display with SDL.
 		for (int i = 0; i < 32; i++) {
