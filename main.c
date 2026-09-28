@@ -20,6 +20,8 @@ static Address stack[16];
 
 static int stack_current = -1;
 
+static Byte delay_timer = 0;
+
 // This function exists to be called once within the main function, to make sure that it executes 60 times per second.
 void delay(long milliseconds) {
 	struct timespec req;
@@ -48,7 +50,7 @@ int main(int argc, char *argv[])
 	// Load the ROM into memory.
 	Byte memory[CHIP8_MEM_SIZE];
 	printf("Created 4KB memory.\n");
-	FILE *fp = fopen("../../test_opcode.ch8", "rb");
+	FILE *fp = fopen("../../5-quirks.ch8", "rb");
 
 	if (fp == NULL) {
 		fprintf(stderr, "cannot open input file!\n");
@@ -90,8 +92,11 @@ int main(int argc, char *argv[])
 				running = false;
 			}
 		}
-		/* if (jump_count > 10) {
-			 for (int l = 0; l < 32; l++) {
+
+		/*
+		
+		if (jump_count > 40) {
+			for (int l = 0; l < 32; l++) {
 				for (int k = 0; k < 64; k++) {
 					if (screen[l][k] == 0) {
 						printf(". ");
@@ -102,10 +107,13 @@ int main(int argc, char *argv[])
 				printf("\n");
 			}
 			running = false;
+			break;
 		}
 		*/
+		
 		for (int m = 0; m < 12; m++) {
 			// Fetch the current opcooe.
+			// jump_count++;
 			__uint16_t opcode = (memory[PC] << 8) | memory[PC + 1];
 			PC += 2;
 			
@@ -134,14 +142,16 @@ int main(int argc, char *argv[])
 			switch (category) {
 				case 0x0:
 					switch (NN) {
-						case 0xE0:
+						case 0xEE:
 							printf("Subroutine\n");
 							PC = stack[stack_current];
 							stack_current--;
 							break;
+						case 0xE0:
+							printf("Clear screen\n");
+							memset(screen, 0, sizeof(screen));
+							break;
 					}
-					printf("Clear screen\n");
-					memset(screen, 0, sizeof(screen));
 					break;
 				case 0x1:
 					printf("Jump\n");
@@ -179,6 +189,79 @@ int main(int argc, char *argv[])
 				case 0x7:
 					printf("Add value to register VX\n");
 					registers[X] += NN;
+					break;
+				case 0x8:
+					switch (N) {
+						case 0x0:
+							printf("Set\n");
+							registers[X] = registers[Y];
+							break;
+						case 0x1:
+							printf("Binary OR\n");
+							registers[X] = registers[X] | registers[Y];
+							break;
+						case 0x2:
+							printf("Binary AND\n");
+							registers[X] = registers[X] & registers[Y];
+							break;
+						case 0x3:
+							printf("Logical XOR\n");
+							registers[X] = registers[X] ^ registers[Y];
+							break;
+						case 0x4:
+							printf("Add\n");
+							__uint8_t flag = 0;
+							if (registers[X] + registers[Y] > 0XFF) {
+								flag = 1;
+							}
+							registers[X] = registers[X] + registers[Y];
+							registers[0xF] = flag;
+							break;
+						case 0x5:
+							printf("Subtract\n");
+							__uint8_t value = 0;
+							if (registers[X] >= registers[Y]) {
+								value = 1;
+							} else {
+								value = 0;
+							}
+							registers[X] = registers[X] - registers[Y];
+							registers[0xF] = value;
+							break;
+						case 0x7:
+							printf("Subtract\n");
+							value = 0;
+							if (registers[Y] >= registers[X]) {
+								value = 1;
+							} else {
+								value = 0;
+							}
+							registers[X] = registers[Y] - registers[X];
+							registers[0xF] = value;
+							break;	
+						case 0x6:
+							printf("Shift\n");
+							value = 0;
+							if ((registers[X] & 1) == 1) {
+								value = 1;
+							} else {
+								value = 0;
+							}
+							registers[X] = registers[X] >> 1;
+							registers[0xF] = value;
+							break;
+						case 0xE:
+							printf("Shift\n");
+							value = 0;
+							if ((registers[X] >> 7) == 1) {
+								value = 1;
+							} else {
+								value = 0;
+							}
+							registers[X] = registers[X] << 1;
+							registers[0xF] = value;
+							break;
+					}
 					break;
 				case 0x9:
 					printf("Skip Conditionally\n");
@@ -222,12 +305,62 @@ int main(int argc, char *argv[])
 						y_coord++;
 					}
 					break;
+				case 0xF:
+					switch(NN) {
+						case 0x07:
+							printf("Timer\n");
+							registers[X] = delay_timer;
+							break;
+						case 0x15:
+							printf("Timer\n");
+							delay_timer = registers[X];
+							break;
+						case 0x65:
+							printf("Load memory\n");
+							for (int i = 0; i <= X; i++) {
+								registers[i] = memory[index_register + i];
+							}
+							break;
+						case 0x55:
+							printf("Store memory\n");
+							for (int i = 0; i <= X; i++) {
+								memory[index_register + i] = registers[i];
+							}
+							break;
+						case 0x33:
+							printf("Binary-coded decimal conversion\n");
+							__uint8_t divisor = 100;
+							__uint8_t register_value = registers[X];
+							/*if (registers[X] / 100 > 0) {
+								divisor = 100;
+							} else if (registers[X] / 10 > 0) {
+								divisor = 10;
+							} else {
+								divisor = 1;
+							}
+							*/
+							for (int i = 0; divisor != 0; i++) {
+								memory[index_register + i] = register_value / divisor;
+								register_value = register_value % divisor;
+								divisor = divisor / 10;
+							}
+							break;
+						case 0x1E:
+							printf("Add to index\n");
+							index_register += registers[X];
+							break;
+					}
+					break;
 				default:
 					printf("Unknown opcode.\n");
 			}
 		}
 
 		// TODO: Add display timers and update them here.
+	
+		if (delay_timer > 0) {
+			delay_timer--;
+		}
 
 		// This updates the display with SDL.
 		for (int i = 0; i < 32; i++) {
