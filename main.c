@@ -12,6 +12,8 @@ typedef __uint8_t Byte;
 
 static bool screen[32][64];
 
+static bool keypad[4][4];
+
 static __uint8_t registers[16];
 
 static __uint16_t index_register;
@@ -89,7 +91,14 @@ int main(int argc, char *argv[])
 	while (running) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EVENT_KEY_DOWN) {
-				running = false;
+				if (event.key.scancode == SDL_SCANCODE_1) {
+					keypad[0][0] = 1;
+				}
+			}
+			if (event.type == SDL_EVENT_KEY_UP) {
+				if (event.key.scancode == SDL_SCANCODE_1) {
+					keypad[0][0] = 0;
+				}
 			}
 		}
 
