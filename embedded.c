@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
+#include "space_invaders.h"
 
 #define START_OF_ROM 512
 #define CHIP8_MEM_SIZE 4096
@@ -15,7 +16,7 @@
 #define PIN_RST 21
 #define PIN_LED 25
 #define SPI_PORT spi0
-#define SPI_HZ 1000000
+#define SPI_HZ 4000000
 #define OUT true
 #define IN false
 typedef __uint16_t Address;
@@ -25,6 +26,21 @@ typedef __uint8_t Byte;
 static bool screen[32][64];
 
 static bool keypad[4][4];
+
+static bool prev_keypad[4][4];
+
+static const Byte LAYOUT[4][4] = {
+    {0x1, 0x2, 0x3, 0xC},
+    {0x4, 0x5, 0x6, 0xD},
+    {0x7, 0x8, 0x9, 0xE},
+    {0xA, 0x0, 0xB, 0xF},
+};
+
+static const uint ROW_PINS[4] = {10, 11, 12, 13};
+												
+static const uint COL_PINS[4] = {6, 7, 8, 9};
+
+static Byte memory[CHIP8_MEM_SIZE];
 
 static uint8_t frame[WIDTH * HEIGHT];
 
@@ -39,8 +55,6 @@ static int stack_current = -1;
 static Byte delay_timer = 0;
 
 static Byte sound_timer = 0;
-
-static bool true_screen[64][128];
 
 
 static const uint8_t unlock[] = {0xFD, 0x12};
@@ -64,7 +78,7 @@ static const uint8_t up_down_window[] = {0x22, 0x00, 0x07};
 
 void setup_pins() {
 	uint actual_hz = spi_init(SPI_PORT, SPI_HZ);
-	printf("SPI running at: %d Hz\n", actual_hz);
+	printf("SPI running at: %u Hz\n", actual_hz);
 	spi_set_format(SPI_PORT, 8, 0, 0, SPI_MSB_FIRST);
 	gpio_set_function(PIN_CLK, GPIO_FUNC_SPI);
 	gpio_set_function(PIN_DATA, GPIO_FUNC_SPI);
@@ -88,6 +102,29 @@ void write_to_screen(bool dc, const uint8_t *bytes, size_t count) {
 	gpio_put(PIN_CS, 0);
 	spi_write_blocking(SPI_PORT, bytes, count);
 	gpio_put(PIN_CS, 1);
+}
+
+void keypad_setup(void) {
+    for (int i = 0; i < 4; i++) {
+        gpio_init(ROW_PINS[i]);
+		gpio_pull_up(ROW_PINS[i]);
+        gpio_put(ROW_PINS[i], 0);   
+    }
+    for (int i = 0; i < 4; i++) {
+        gpio_init(COL_PINS[i]);
+        gpio_pull_up(COL_PINS[i]); 
+    }
+}
+
+void keypad_scan(void) {
+    for (int r = 0; r < 4; r++) {
+        gpio_set_dir(ROW_PINS[r], GPIO_OUT);
+        sleep_us(10);
+        for (int c = 0; c < 4; c++) {
+            keypad[r][c] = (gpio_get(COL_PINS[c]) == 0);
+        }
+        gpio_set_dir(ROW_PINS[r], GPIO_IN);
+    }
 }
 
 void command_to_screen(const uint8_t *command, size_t len) {
@@ -131,37 +168,36 @@ void init_screen() {
 	command_to_screen(display_on, sizeof(display_on));
 	sleep_ms(100);
 }
+void set_pixel(uint8_t *buf, int x, int y) {
+	if (x < 0 || x >= 128 || y < 0 || y >= 64) {
+		return;
+	}
+	buf[(y / 8) * WIDTH + x] |= (uint8_t)(1u << (y % 8));
+}
 
 
 int main(int argc, char *argv[])
 {
 	stdio_init_all();
-	gpio_set_dir(PIN_LED, GPIO_OUT);
 	sleep_ms(2000);
 	printf("Starting\n");
 	setup_pins();
 	init_screen();
+	keypad_setup();
 	printf("Init done\n");
-	uint8_t turn_on[] = {0xA5};
-	command_to_screen(turn_on, sizeof(turn_on));
-	bool led = false;
-	while (true) {
-		led = !led;
-		gpio_put(PIN_LED, led);
-		sleep_ms(500);
-	}
-	int i, max, c;
-	int PC = START_OF_ROM;
-
-	// TODO: Setup display.
+	uint8_t buf[1024];
+	memset(buf, 0, sizeof(buf));
 	
-
-	// TODO: Setup audio.
+	//uint8_t turn_on[] = {0xA5};
+	//command_to_screen(turn_on, sizeof(turn_on));
+	gpio_put(PIN_LED, true);
+	int PC = START_OF_ROM;
 	
 
 
 	// Load the ROM into memory.
-	Byte memory[CHIP8_MEM_SIZE];
+	memcpy(&memory[START_OF_ROM], space_invaders, space_invaders_len);
+	/*
 	printf("Created 4KB memory.\n");
 	FILE *fp = fopen("../../space_invaders.ch8", "rb");
 
@@ -175,6 +211,7 @@ int main(int argc, char *argv[])
 	}
 
 	fclose(fp);
+	*/
 
 	bool running = true;
 	bool blocking = false;
@@ -183,9 +220,24 @@ int main(int argc, char *argv[])
 	// int jump_count = 0;
 
 	// This is the main function. It processes events, decodes 12 instructions, updates the timers and display, and runs 60/s.
+	absolute_time_t next_frame = get_absolute_time();
 	while (running) {
+		memcpy(prev_keypad, keypad, sizeof keypad);
+		keypad_scan();
+
+		if (blocking) {
+    		for (int r = 0; r < 4 && blocking; r++) {
+        		for (int c = 0; c < 4 && blocking; c++) {
+            		if (prev_keypad[r][c] && !keypad[r][c]) {
+                		registers[global_X] = LAYOUT[r][c];
+                		blocking = false;
+                		PC += 2; 
+            		}
+        		}
+    		}
+		}
 				
-		for (int m = 0; m < 30; m++) {
+		for (int m = 0; m < 10; m++) {
 			// Fetch the current opcooe.
 			// jump_count++;
 			__uint16_t opcode = (memory[PC] << 8) | memory[PC + 1];
@@ -201,7 +253,7 @@ int main(int argc, char *argv[])
 			__uint8_t N = (opcode & 0x000F);
 			__uint8_t NN = (opcode & 0x00FF);
 			Address NNN = (opcode & 0x0FFF);
-			printf("%x\n", opcode);
+			// printf("%x\n", opcode);
 			global_X = X;
 
 			// Execute the current opcode.
@@ -210,73 +262,73 @@ int main(int argc, char *argv[])
 				case 0x0:
 					switch (NN) {
 						case 0xEE:
-							printf("Subroutine\n");
+							// printf("Subroutine\n");
 							PC = stack[stack_current];
 							stack_current--;
 							break;
 						case 0xE0:
-							printf("Clear screen\n");
+							// printf("Clear screen\n");
 							memset(screen, 0, sizeof(screen));
 							break;
 					}
 					break;
 				case 0x1:
-					printf("Jump\n");
+					// printf("Jump\n");
 					PC = NNN;
 					//jump_count++;
 					break;
 				case 0x2:
-					printf("Subroutine\n");
+					// printf("Subroutine\n");
 					stack_current++;
 					stack[stack_current] = PC;
 					PC = NNN;
 					break;
 				case 0x3:
-					printf("Skip Conditionally\n");
+					// printf("Skip Conditionally\n");
 					if (registers[X] == NN) {
 						PC += 2;
 					}
 					break;
 				case 0x4:
-					printf("Skip Conditionally\n");
+					// printf("Skip Conditionally\n");
 					if (registers[X] != NN) {
 						PC += 2;
 					}
 					break;
 				case 0x5:
-					printf("Skip Conditionally\n");
+					// printf("Skip Conditionally\n");
 					if (registers[X] == registers[Y]) {
 						PC += 2;
 					}
 					break;
 				case 0x6:
-					printf("Set register VX\n");
+					// printf("Set register VX\n");
 					registers[X] = NN;
 					break;
 				case 0x7:
-					printf("Add value to register VX\n");
+					// printf("Add value to register VX\n");
 					registers[X] += NN;
 					break;
 				case 0x8:
 					switch (N) {
 						case 0x0:
-							printf("Set\n");
+							// printf("Set\n");
 							registers[X] = registers[Y];
 							break;
 						case 0x1:
-							printf("Binary OR\n");
+							// printf("Binary OR\n");
 							registers[X] = registers[X] | registers[Y];
 							break;
 						case 0x2:
-							printf("Binary AND\n");
+							// printf("Binary AND\n");
 							registers[X] = registers[X] & registers[Y];
 							break;
 						case 0x3:
-							printf("Logical XOR\n");
+							// printf("Logical XOR\n");
 							registers[X] = registers[X] ^ registers[Y];
 							break;
 						case 0x4:
-							printf("Add\n");
+							// printf("Add\n");
 							__uint8_t flag = 0;
 							if (registers[X] + registers[Y] > 0XFF) {
 								flag = 1;
@@ -285,7 +337,7 @@ int main(int argc, char *argv[])
 							registers[0xF] = flag;
 							break;
 						case 0x5:
-							printf("Subtract\n");
+							// printf("Subtract\n");
 							__uint8_t value = 0;
 							if (registers[X] >= registers[Y]) {
 								value = 1;
@@ -296,7 +348,7 @@ int main(int argc, char *argv[])
 							registers[0xF] = value;
 							break;
 						case 0x7:
-							printf("Subtract\n");
+							// printf("Subtract\n");
 							value = 0;
 							if (registers[Y] >= registers[X]) {
 								value = 1;
@@ -307,7 +359,7 @@ int main(int argc, char *argv[])
 							registers[0xF] = value;
 							break;	
 						case 0x6:
-							printf("Shift\n");
+							// printf("Shift\n");
 							value = 0;
 							if ((registers[X] & 1) == 1) {
 								value = 1;
@@ -318,7 +370,7 @@ int main(int argc, char *argv[])
 							registers[0xF] = value;
 							break;
 						case 0xE:
-							printf("Shift\n");
+							// printf("Shift\n");
 							value = 0;
 							if ((registers[X] >> 7) == 1) {
 								value = 1;
@@ -331,21 +383,21 @@ int main(int argc, char *argv[])
 					}
 					break;
 				case 0x9:
-					printf("Skip Conditionally\n");
+					// printf("Skip Conditionally\n");
 					if (registers[X] != registers[Y]) {
 						PC += 2;
 					}
 					break;
 				case 0xA:
-					printf("Set index register I\n");
+					// printf("Set index register I\n");
 					index_register = NNN;
 					break;
 				case 0XB:
-					printf("Jump with offset\n");
+					// printf("Jump with offset\n");
 					PC = NNN + registers[0];
 					break;
 				case 0xD:
-					printf("Draw\n");
+					// printf("Draw\n");
 					__uint8_t x_coord = registers[X] % 64;
 					__uint8_t x_coord_original = x_coord;
 					__uint8_t y_coord = registers[Y] % 32;
@@ -353,14 +405,14 @@ int main(int argc, char *argv[])
 					// Complicated logic, but what this does is process the sprite data and draw it to the screen buffer.
 					// The screen buffer of bools will be given to SDL to draw in the next step.
 					for (int i = 0; i < N; i++) {
-						if (y_coord > 32) {
+						if (y_coord >= 32) {
 							break;
 						}
 						x_coord = x_coord_original;
 						Byte sprite_data = memory[index_register + i];
 						__uint8_t temp_bit_helper = 0x80;
 						for (int j = 7; j >= 0; j--) {
-							if (x_coord > 64) {
+							if (x_coord >= 64) {
 								break;
 							}
 							__uint8_t pixel = (sprite_data & (temp_bit_helper >> (7 - j))) >> j;
@@ -379,7 +431,7 @@ int main(int argc, char *argv[])
 				case 0xE:
 					switch (NN) {
 						case 0x9E:
-							printf("Skip if key\n");
+							// printf("Skip if key\n");
 							int i = 0;
 							int j = 0;
 							switch (registers[X]) {
@@ -453,7 +505,7 @@ int main(int argc, char *argv[])
 							}
 							break;
 						case 0xA1:
-							printf("Skip if key\n");
+							// printf("Skip if key\n");
 							switch (registers[X]) {
 								case 0x1:
 									i = 0;
@@ -529,36 +581,36 @@ int main(int argc, char *argv[])
 				case 0xF:
 					switch(NN) {
 						case 0x07:
-							printf("Timer\n");
+							// printf("Timer\n");
 							registers[X] = delay_timer;
 							break;
 						case 0x0A:
-							printf("Get key\n");
+							// printf("Get key\n");
 							PC -= 2;
 							blocking = true;
 							break;
 						case 0x15:
-							printf("Timer\n");
+							// printf("Timer\n");
 							delay_timer = registers[X];
 							break;
 						case 0x18:
-							printf("Timer\n");
+							// printf("Timer\n");
 							sound_timer = registers[X];
 							break;
 						case 0x65:
-							printf("Load memory\n");
+							// printf("Load memory\n");
 							for (int i = 0; i <= X; i++) {
 								registers[i] = memory[index_register + i];
 							}
 							break;
 						case 0x55:
-							printf("Store memory\n");
+							// printf("Store memory\n");
 							for (int i = 0; i <= X; i++) {
 								memory[index_register + i] = registers[i];
 							}
 							break;
 						case 0x33:
-							printf("Binary-coded decimal conversion\n");
+							// printf("Binary-coded decimal conversion\n");
 							__uint8_t divisor = 100;
 							__uint8_t register_value = registers[X];
 							for (int i = 0; divisor != 0; i++) {
@@ -568,13 +620,13 @@ int main(int argc, char *argv[])
 							}
 							break;
 						case 0x1E:
-							printf("Add to index\n");
+							// printf("Add to index\n");
 							index_register += registers[X];
 							break;
 					}
 					break;
 				default:
-					printf("Unknown opcode.\n");
+					// printf("Unknown opcode.\n");
 			}
 		}
 	
@@ -592,27 +644,25 @@ int main(int argc, char *argv[])
 			sound_on = false;
 		}
 
-		// TODO: prep the display
-
-		// TODO: This updates the display.
+		memset(frame, 0, sizeof frame);
 		for (int i = 0; i < 32; i++) {
-			for (int j = 0; j < 64; j++) {
-				if (screen[i][j] == 1) {
-					// TODO: fill the pixel (2x)
-					int x = j * 2;
-					int y = i * 2;
-					true_screen[x][y] = 1;
-					true_screen[x+1][y] = 1;
-					true_screen[x][y+1] = 1;
-					true_screen[x+1][y+1] = 1;
-
-				}
-			}
+    		for (int j = 0; j < 64; j++) {
+        		if (screen[i][j]) {
+            		int x = j * 2;
+            		int y = i * 2;
+            		set_pixel(frame, x,     y);
+            		set_pixel(frame, x + 1, y);
+            		set_pixel(frame, x,     y + 1);
+            		set_pixel(frame, x + 1, y + 1);
+        		}
+    		}
 		}
-		// TODO: present the display
-
+		command_to_screen(left_right_window, sizeof left_right_window);
+		command_to_screen(up_down_window, sizeof up_down_window);
+		data_to_screen(frame, sizeof frame);	
 		// This function delays to ensure the main loop runs about 60/s.
-		sleep_ms(17);
+		next_frame = delayed_by_us(next_frame, 16667);
+		sleep_until(next_frame);
 	}	
 	return 0;
 }
